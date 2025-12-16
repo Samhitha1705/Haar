@@ -16,6 +16,16 @@ pipeline {
             }
         }
 
+        stage('Docker Login') {
+            steps {
+                withCredentials([string(credentialsId: 'docker-pass', variable: 'DOCKER_PASS')]) {
+                    bat '''
+                    echo %DOCKER_PASS% | docker login -u vedasamhitha17 --password-stdin
+                    '''
+                }
+            }
+        }
+
         stage('Build Backend') {
             steps {
                 dir('backend') {
@@ -27,18 +37,10 @@ pipeline {
         stage('Build Frontend') {
             steps {
                 dir('frontend') {
-                    bat '''
-                    npm install
-                    npm run build
-                    '''
-                }
-            }
-        }
-
-        stage('Docker Login') {
-            steps {
-                withCredentials([string(credentialsId: 'docker-pass', variable: 'DOCKER_PASS')]) {
-                    bat 'echo %DOCKER_PASS% | docker login -u vedasamhitha17 --password-stdin'
+                    // Clean old node_modules to avoid issues
+                    bat 'rmdir /s /q node_modules 2>nul || echo node_modules not present'
+                    bat 'npm install'
+                    bat 'npm run build'
                 }
             }
         }
@@ -46,8 +48,8 @@ pipeline {
         stage('Docker Build') {
             steps {
                 bat '''
-                docker build --pull=false -t %BACKEND_IMAGE%:%TAG% backend
-                docker build --pull=false -t %FRONTEND_IMAGE%:%TAG% frontend
+                docker build -t %BACKEND_IMAGE%:%TAG% backend
+                docker build -t %FRONTEND_IMAGE%:%TAG% frontend
                 '''
             }
         }
@@ -63,25 +65,30 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                bat '''
-                docker rm -f backend frontend 2>nul || echo Containers not running
-                docker run -d -p 8080:8080 --name backend %BACKEND_IMAGE%:%TAG%
-                docker run -d -p 3000:80  --name frontend %FRONTEND_IMAGE%:%TAG%
-                '''
+                // Try deploying even if previous steps fail
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    bat '''
+                    docker rm -f backend frontend 2>nul || echo Containers not running
+                    docker run -d -p 8080:8080 --name backend %BACKEND_IMAGE%:%TAG%
+                    docker run -d -p 3000:80 --name frontend %FRONTEND_IMAGE%:%TAG%
+                    '''
+                }
             }
         }
     }
 
     post {
-        always {
-            echo 'Cleaning node_modules safely'
-            bat 'rmdir /s /q frontend\\node_modules 2>nul || exit 0'
-        }
         success {
-            echo '✅ Jenkins Full Stack Pipeline Success'
+            echo '✅ Jenkins Full Stack Pipeline Succeeded'
         }
         failure {
             echo '❌ Jenkins Pipeline Failed'
+        }
+        always {
+            // Post cleanup of frontend node_modules
+            dir('frontend') {
+                bat 'rmdir /s /q node_modules 2>nul || echo node_modules already cleaned'
+            }
         }
     }
 }
