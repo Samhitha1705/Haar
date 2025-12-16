@@ -27,18 +27,29 @@ pipeline {
         stage('Build Frontend') {
             steps {
                 dir('frontend') {
-                    bat 'npm install'
-                    bat 'npm run build'
+                    bat '''
+                    echo ===== Configuring npm =====
+                    npm config set fetch-retries 5
+                    npm config set fetch-retry-mintimeout 20000
+                    npm config set fetch-retry-maxtimeout 120000
+                    npm config set cache "%WORKSPACE%\\.npm-cache" --global
+
+                    echo ===== Installing dependencies =====
+                    npm install
+
+                    echo ===== Building frontend =====
+                    npm run build
+                    '''
                 }
             }
         }
 
         stage('Docker Build') {
             steps {
-                bat '''
-                docker build -t ${BACKEND_IMAGE}:${TAG} backend
-                docker build -t ${FRONTEND_IMAGE}:${TAG} frontend
-                '''
+                bat """
+                docker build -t %BACKEND_IMAGE%:%TAG% backend
+                docker build -t %FRONTEND_IMAGE%:%TAG% frontend
+                """
             }
         }
 
@@ -46,7 +57,7 @@ pipeline {
             steps {
                 withCredentials([string(credentialsId: 'docker-pass', variable: 'DOCKER_PASS')]) {
                     bat '''
-                    echo "$DOCKER_PASS" | docker login -u vedasamhitha17 --password-stdin
+                    echo %DOCKER_PASS% | docker login -u vedasamhitha17 --password-stdin
                     '''
                 }
             }
@@ -54,25 +65,29 @@ pipeline {
 
         stage('Docker Push') {
             steps {
-                bat '''
-                docker push ${BACKEND_IMAGE}:${TAG}
-                docker push ${FRONTEND_IMAGE}:${TAG}
-                '''
+                bat """
+                docker push %BACKEND_IMAGE%:%TAG%
+                docker push %FRONTEND_IMAGE%:%TAG%
+                """
             }
         }
 
         stage('Deploy') {
             steps {
                 bat '''
-                docker rm -f backend frontend || true
-                docker run -d -p 8080:8080 --name backend ${BACKEND_IMAGE}:${TAG}
-                docker run -d -p 3000:80  --name frontend ${FRONTEND_IMAGE}:${TAG}
+                docker rm -f backend frontend 2>nul || echo Containers not running
+                docker run -d -p 8080:8080 --name backend %BACKEND_IMAGE%:%TAG%
+                docker run -d -p 3000:80  --name frontend %FRONTEND_IMAGE%:%TAG%
                 '''
             }
         }
     }
 
     post {
+        always {
+            echo Cleaning node_modules safely
+            bat 'rmdir /s /q frontend\\node_modules 2>nul || exit 0'
+        }
         success {
             echo '✅ Jenkins Full Stack Pipeline Success'
         }
