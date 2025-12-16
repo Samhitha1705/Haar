@@ -31,8 +31,6 @@ pipeline {
                     npm config set fetch-retries 5
                     npm config set fetch-retry-mintimeout 20000
                     npm config set fetch-retry-maxtimeout 120000
-                    npm config set cache "%WORKSPACE%\\.npm-cache" --global
-
                     npm install
                     npm run build
                     '''
@@ -42,29 +40,27 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                bat """
+                bat '''
                 docker build -t %BACKEND_IMAGE%:%TAG% backend
                 docker build -t %FRONTEND_IMAGE%:%TAG% frontend
-                """
+                '''
             }
         }
 
         stage('Docker Login') {
             steps {
                 withCredentials([string(credentialsId: 'docker-pass', variable: 'DOCKER_PASS')]) {
-                    bat '''
-                    echo %DOCKER_PASS% | docker login -u vedasamhitha17 --password-stdin
-                    '''
+                    bat 'echo %DOCKER_PASS% | docker login -u vedasamhitha17 --password-stdin'
                 }
             }
         }
 
         stage('Docker Push') {
             steps {
-                bat """
+                bat '''
                 docker push %BACKEND_IMAGE%:%TAG%
                 docker push %FRONTEND_IMAGE%:%TAG%
-                """
+                '''
             }
         }
 
@@ -81,10 +77,8 @@ pipeline {
 
     post {
         always {
-            steps {
-                echo 'Cleaning node_modules safely'
-                bat 'rmdir /s /q frontend\\node_modules 2>nul || exit 0'
-            }
+            echo 'Cleaning node_modules safely'
+            bat 'rmdir /s /q frontend\\node_modules 2>nul || exit 0'
         }
         success {
             echo '✅ Jenkins Full Stack Pipeline Success'
