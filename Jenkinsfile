@@ -37,8 +37,8 @@ pipeline {
         stage('Build Frontend') {
             steps {
                 dir('frontend') {
-                    // Clean old node_modules to avoid issues
-                    bat 'rmdir /s /q node_modules 2>nul || echo node_modules not present'
+                    // Clean node_modules safely
+                    bat 'rmdir /s /q node_modules 2>nul || exit 0'
                     bat 'npm install'
                     bat 'npm run build'
                 }
@@ -65,14 +65,11 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                // Try deploying even if previous steps fail
-                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                    bat '''
-                    docker rm -f backend frontend 2>nul || echo Containers not running
-                    docker run -d -p 8080:8080 --name backend %BACKEND_IMAGE%:%TAG%
-                    docker run -d -p 3000:80 --name frontend %FRONTEND_IMAGE%:%TAG%
-                    '''
-                }
+                bat '''
+                docker rm -f backend frontend 2>nul || echo Containers not running
+                docker run -d -p 8080:8080 --name backend %BACKEND_IMAGE%:%TAG%
+                docker run -d -p 3000:80 --name frontend %FRONTEND_IMAGE%:%TAG%
+                '''
             }
         }
     }
@@ -85,9 +82,11 @@ pipeline {
             echo '❌ Jenkins Pipeline Failed'
         }
         always {
-            // Post cleanup of frontend node_modules
-            dir('frontend') {
-                bat 'rmdir /s /q node_modules 2>nul || echo node_modules already cleaned'
+            echo 'Cleaning frontend node_modules safely'
+            catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
+                dir('frontend') {
+                    bat 'rmdir /s /q node_modules 2>nul || exit 0'
+                }
             }
         }
     }
