@@ -52,7 +52,7 @@ pipeline {
                 bat '''
                 docker rm -f backend frontend 2>nul || echo Containers not running
                 docker run -d -p 8081:8080 --name backend vedasamhitha17/backend:latest
-                docker run -d -p 3000:80 --name frontend vedasamhitha17/frontend:latest
+                docker run -d -p 3001:80 --name frontend vedasamhitha17/frontend:latest
                 '''
             }
         }
