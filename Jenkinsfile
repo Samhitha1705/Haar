@@ -28,16 +28,12 @@ pipeline {
             steps {
                 dir('frontend') {
                     bat '''
-                    echo ===== Configuring npm =====
                     npm config set fetch-retries 5
                     npm config set fetch-retry-mintimeout 20000
                     npm config set fetch-retry-maxtimeout 120000
                     npm config set cache "%WORKSPACE%\\.npm-cache" --global
 
-                    echo ===== Installing dependencies =====
                     npm install
-
-                    echo ===== Building frontend =====
                     npm run build
                     '''
                 }
@@ -85,8 +81,10 @@ pipeline {
 
     post {
         always {
-            echo Cleaning node_modules safely
-            bat 'rmdir /s /q frontend\\node_modules 2>nul || exit 0'
+            steps {
+                echo 'Cleaning node_modules safely'
+                bat 'rmdir /s /q frontend\\node_modules 2>nul || exit 0'
+            }
         }
         success {
             echo '✅ Jenkins Full Stack Pipeline Success'
