@@ -2,26 +2,21 @@ pipeline {
     agent any
 
     environment {
-        BACKEND_IMAGE  = "vedasamhitha17/backend"
-        FRONTEND_IMAGE = "vedasamhitha17/frontend"
-        TAG = "latest"
+        DOCKER_USER = 'vedasamhitha17'
+        DOCKER_PASS = credentials('docker-hub-password') // Replace with your Jenkins credential ID
     }
 
     stages {
-
-        stage('Checkout Code') {
+        stage('Checkout SCM') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/Samhitha1705/Haar.git'
+                checkout scm
             }
         }
 
         stage('Docker Login') {
             steps {
-                withCredentials([string(credentialsId: 'docker-pass', variable: 'DOCKER_PASS')]) {
-                    bat '''
-                    echo %DOCKER_PASS% | docker login -u vedasamhitha17 --password-stdin
-                    '''
+                withCredentials([string(credentialsId: 'docker-hub-password', variable: 'DOCKER_PASS')]) {
+                    bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
                 }
             }
         }
@@ -37,56 +32,59 @@ pipeline {
         stage('Build Frontend') {
             steps {
                 dir('frontend') {
-                    // Clean node_modules safely
-                    bat 'rmdir /s /q node_modules 2>nul || exit 0'
+                    bat 'rmdir /s /q node_modules 2>nul || echo node_modules not present'
                     bat 'npm install'
                     bat 'npm run build'
                 }
             }
         }
 
-        stage('Docker Build') {
+        stage('Docker Build & Push') {
             steps {
-                bat '''
-                docker build -t %BACKEND_IMAGE%:%TAG% backend
-                docker build -t %FRONTEND_IMAGE%:%TAG% frontend
-                '''
-            }
-        }
+                script {
+                    // Build backend and frontend images
+                    bat 'docker build -t vedasamhitha17/backend:latest ./backend'
+                    bat 'docker build -t vedasamhitha17/frontend:latest ./frontend'
 
-        stage('Docker Push') {
-            steps {
-                bat '''
-                docker push %BACKEND_IMAGE%:%TAG%
-                docker push %FRONTEND_IMAGE%:%TAG%
-                '''
+                    // Push images to Docker Hub
+                    bat 'docker push vedasamhitha17/backend:latest'
+                    bat 'docker push vedasamhitha17/frontend:latest'
+                }
             }
         }
 
         stage('Deploy') {
             steps {
                 bat '''
+                REM Stop and remove existing containers
                 docker rm -f backend frontend 2>nul || echo Containers not running
-                docker run -d -p 8080:8080 --name backend %BACKEND_IMAGE%:%TAG%
-                docker run -d -p 3000:80 --name frontend %FRONTEND_IMAGE%:%TAG%
+
+                REM Pull latest images to ensure availability
+                docker pull vedasamhitha17/backend:latest
+                docker pull vedasamhitha17/frontend:latest
+
+                REM Run backend and frontend containers
+                docker run -d -p 8080:8080 --name backend vedasamhitha17/backend:latest
+                docker run -d -p 3001:80 --name frontend vedasamhitha17/frontend:latest
                 '''
             }
         }
     }
 
     post {
-        success {
-            echo '✅ Jenkins Full Stack Pipeline Succeeded'
-        }
-        failure {
-            echo '❌ Jenkins Pipeline Failed'
-        }
         always {
-            echo 'Cleaning frontend node_modules safely'
+            echo "Cleaning frontend node_modules safely"
             dir('frontend') {
-                // Use returnStatus so errors do NOT fail the pipeline
-                bat(script: 'rmdir /s /q node_modules 2>nul', returnStatus: true)
+                bat 'rmdir /s /q node_modules 2>nul || echo node_modules already cleaned'
             }
+        }
+
+        success {
+            echo "✅ Jenkins Pipeline Completed Successfully"
+        }
+
+        failure {
+            echo "❌ Jenkins Pipeline Failed"
         }
     }
 }
