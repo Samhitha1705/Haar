@@ -28,22 +28,10 @@ pipeline {
             steps {
                 dir('frontend') {
                     bat '''
-                    npm config set fetch-retries 5
-                    npm config set fetch-retry-mintimeout 20000
-                    npm config set fetch-retry-maxtimeout 120000
                     npm install
                     npm run build
                     '''
                 }
-            }
-        }
-
-        stage('Docker Build') {
-            steps {
-                bat '''
-                docker build -t %BACKEND_IMAGE%:%TAG% backend
-                docker build -t %FRONTEND_IMAGE%:%TAG% frontend
-                '''
             }
         }
 
@@ -52,6 +40,15 @@ pipeline {
                 withCredentials([string(credentialsId: 'docker-pass', variable: 'DOCKER_PASS')]) {
                     bat 'echo %DOCKER_PASS% | docker login -u vedasamhitha17 --password-stdin'
                 }
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                bat '''
+                docker build --pull=false -t %BACKEND_IMAGE%:%TAG% backend
+                docker build --pull=false -t %FRONTEND_IMAGE%:%TAG% frontend
+                '''
             }
         }
 
