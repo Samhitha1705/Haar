@@ -19,7 +19,7 @@ pipeline {
         stage('Build Backend') {
             steps {
                 dir('backend') {
-                    sh 'mvn clean package'
+                    bat 'mvn clean package'
                 }
             }
         }
@@ -27,15 +27,15 @@ pipeline {
         stage('Build Frontend') {
             steps {
                 dir('frontend') {
-                    sh 'npm install'
-                    sh 'npm run build'
+                    bat 'npm install'
+                    bat 'npm run build'
                 }
             }
         }
 
         stage('Docker Build') {
             steps {
-                sh '''
+                bat '''
                 docker build -t ${BACKEND_IMAGE}:${TAG} backend
                 docker build -t ${FRONTEND_IMAGE}:${TAG} frontend
                 '''
@@ -45,7 +45,7 @@ pipeline {
         stage('Docker Login') {
             steps {
                 withCredentials([string(credentialsId: 'docker-pass', variable: 'DOCKER_PASS')]) {
-                    sh '''
+                    bat '''
                     echo "$DOCKER_PASS" | docker login -u vedasamhitha17 --password-stdin
                     '''
                 }
@@ -54,7 +54,7 @@ pipeline {
 
         stage('Docker Push') {
             steps {
-                sh '''
+                bat '''
                 docker push ${BACKEND_IMAGE}:${TAG}
                 docker push ${FRONTEND_IMAGE}:${TAG}
                 '''
@@ -63,7 +63,7 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                sh '''
+                bat '''
                 docker rm -f backend frontend || true
                 docker run -d -p 8080:8080 --name backend ${BACKEND_IMAGE}:${TAG}
                 docker run -d -p 3000:80  --name frontend ${FRONTEND_IMAGE}:${TAG}
