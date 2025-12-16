@@ -83,10 +83,9 @@ pipeline {
         }
         always {
             echo 'Cleaning frontend node_modules safely'
-            catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
-                dir('frontend') {
-                    bat 'rmdir /s /q node_modules 2>nul || exit 0'
-                }
+            dir('frontend') {
+                // Use returnStatus so errors do NOT fail the pipeline
+                bat(script: 'rmdir /s /q node_modules 2>nul', returnStatus: true)
             }
         }
     }
